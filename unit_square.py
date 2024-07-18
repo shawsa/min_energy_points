@@ -2,6 +2,7 @@ from math import ceil
 import matplotlib.pyplot as plt
 import numpy as np
 from .points import PointCloud
+from .kernels import ConstRepulsionKernel, GaussianRepulsionKernel
 
 from tqdm import tqdm
 
@@ -23,6 +24,30 @@ def hex_limit_density(h: float):
     return ceil(1 / (unit_density * h**2))
 
 
+def generate_boundary_points(n: int, boundary_points: np.ndarray[float] = None):
+    """
+    Generate 4n points on the boundary of the unit square with.
+    Note that there will be n+1 points on each side since each corner is shared
+    by two sides.
+
+    If the boundary_points array is supplied then the result is placed there
+    in addition to being returned.
+    """
+
+    if boundary_points is None:
+        boundary_points = np.empty((4 * n, 2), dtype=float)
+    side = np.linspace(0, 1, n, endpoint=False)
+    boundary_points[:n][:, 0] = side
+    boundary_points[:n][:, 1] = 0
+    boundary_points[n : 2 * n][:, 0] = 1
+    boundary_points[n : 2 * n][:, 1] = side
+    boundary_points[2 * n : 3 * n][:, 0] = 1 - side
+    boundary_points[2 * n : 3 * n][:, 1] = 1
+    boundary_points[3 * n :][:, 0] = 0
+    boundary_points[3 * n :][:, 1] = 1 - side
+    return boundary_points
+
+
 class UnitSquare(PointCloud):
     """
     Generates N points in unit square [0, 1] x [0, 1].
@@ -41,41 +66,21 @@ class UnitSquare(PointCloud):
         self.N = N
         self.h = hex_limit_covering_radius(N)
         self.n = ceil(1 / self.h)
+
         num_boundary = self.n * 4
         num_interior = self.N - num_boundary
-        num_ghost = num_boundary + 8
+        num_ghost = num_boundary + 4
         assert self.n >= 2
+
         points = np.empty((self.N + num_ghost, 2))
 
         boundary_points = points[num_interior : num_interior + num_boundary]
-        side = np.linspace(0, 1, self.n, endpoint=False)
-        boundary_points[: self.n][:, 0] = side
-        boundary_points[: self.n][:, 1] = 0
-        boundary_points[self.n : 2 * self.n][:, 0] = 1
-        boundary_points[self.n : 2 * self.n][:, 1] = side
-        boundary_points[2 * self.n : 3 * self.n][:, 0] = 1 - side
-        boundary_points[2 * self.n : 3 * self.n][:, 1] = 1
-        boundary_points[3 * self.n :][:, 0] = 0
-        boundary_points[3 * self.n :][:, 1] = 1 - side
+        generate_boundary_points(self.n, boundary_points)
 
-        ghost_points = points[
-            num_interior + num_boundary : num_interior + num_boundary + num_ghost
-        ]
-        boundary_spacing = 1 / self.n
-        ghost_per_side = self.n + 2
-        side = np.linspace(
-            -boundary_spacing / 2, 1 + boundary_spacing / 2, ghost_per_side
-        )
-        ghost_points[:ghost_per_side][:, 0] = side
-        ghost_points[:ghost_per_side][:, 1] = -boundary_spacing
-        ghost_points[ghost_per_side : 2 * ghost_per_side][:, 0] = 1 + boundary_spacing
-        ghost_points[ghost_per_side : 2 * ghost_per_side][:, 1] = side
-        ghost_points[2 * ghost_per_side : 3 * ghost_per_side][:, 0] = 1 - side
-        ghost_points[2 * ghost_per_side : 3 * ghost_per_side][:, 1] = (
-            1 + boundary_spacing
-        )
-        ghost_points[3 * ghost_per_side :][:, 0] = -boundary_spacing
-        ghost_points[3 * ghost_per_side :][:, 1] = 1 - side
+        ghost_points = points[self.N :]
+        generate_boundary_points(self.n + 1, ghost_points)
+        ghost_points *= 1 + self.h * np.sqrt(2)
+        ghost_points -= self.h * np.sqrt(2)/2
 
         points[:num_interior] = self.h + (1 - 2 * self.h) * np.random.random(
             (self.N - 4 * self.n, 2)
@@ -97,16 +102,12 @@ class UnitSquare(PointCloud):
             self.edge_cluster()
 
     def edge_cluster(self):
-        shift_points = self.inner - 0.5
+        shift_points = self.mutable_points - 0.5
         edge_distance = 0.5 - np.max(np.abs(shift_points))
         factor = (0.5 - edge_distance / 2) / (0.5 - edge_distance)
-        self.inner = shift_points * factor + 0.5
+        self.mutable_points = shift_points * factor + 0.5
 
     def force_shape(self, x):
-        # return self.h * (1 + np.tanh(-(x - self.h / 2) / self.h**2))
-        # return 10*self.h * (1 + np.tanh(-20 * x / self.h))
-        # return self.h * np.exp(-2 / self.h * (x - self.h / 2))
-        # return 0
         return (-x + self.h / 2) * np.heaviside(-x, 0.5)
 
     def boundary_force(self, points):
@@ -134,7 +135,6 @@ class UnitSquare(PointCloud):
                 rate=rate / num_neighbors,
                 num_neighbors=num_neighbors,
                 force=self.boundary_force,
-                use_ghost=True,
             )
 
     def jostle(self, repeat: int = 1, verbose: bool = False, tqdm_kwargs={}):
@@ -149,7 +149,6 @@ class UnitSquare(PointCloud):
                 rate=1 / num_neighbors,
                 num_neighbors=num_neighbors,
                 force=self.boundary_force,
-                use_ghost=True,
             )
 
     def auto_settle(self):
@@ -162,7 +161,6 @@ class UnitSquare(PointCloud):
 if __name__ == "__main__":
     from scipy.spatial import Delaunay
     from .points import PointCloud
-    from .kernels import GaussianRepulsionKernel, ConstRepulsionKernel
 
     plt.ion()
     N = 10_000
@@ -170,7 +168,7 @@ if __name__ == "__main__":
     # unit_square.auto_settle(verbose=True)
 
     plt.figure("Mesh")
-    (scatter,) = plt.plot(*unit_square.inner.T, "k.")
+    (scatter,) = plt.plot(*unit_square.mutable_points.T, "k.")
     plt.plot(*unit_square.boundary.T, "bs")
     plt.plot(*unit_square.ghost.T, "or")
     plt.axis("equal")
@@ -178,22 +176,22 @@ if __name__ == "__main__":
     # unit_square.jostle(repeat=20, verbose=True)
     for _ in tqdm(range(50)):
         unit_square.jostle(repeat=1)
-        scatter.set_data(*unit_square.inner.T)
+        scatter.set_data(*unit_square.mutable_points.T)
         plt.pause(1e-3)
 
     # unit_square.settle(rate=1, repeat=20, verbose=True)
     for _ in tqdm(range(25)):
         unit_square.settle(rate=0.1)
-        scatter.set_data(*unit_square.inner.T)
+        scatter.set_data(*unit_square.mutable_points.T)
         plt.pause(1e-3)
 
     for _ in tqdm(range(25)):
         unit_square.settle(rate=1)
-        scatter.set_data(*unit_square.inner.T)
+        scatter.set_data(*unit_square.mutable_points.T)
         plt.pause(1e-3)
 
     unit_square.edge_cluster()
-    scatter.set_data(*unit_square.inner.T)
+    scatter.set_data(*unit_square.mutable_points.T)
     plt.pause(1e-3)
 
     points = unit_square.points

@@ -27,9 +27,13 @@ class PointCloud:
     def mutable_points(self):
         return self.points[: self.num_mutable]
 
+    @mutable_points.setter
+    def mutable_points(self, value):
+        self.points[: self.num_mutable] = value
+
     @property
     def points(self):
-        return self.all_points[:self.num_mutable + self.num_fixed]
+        return self.all_points[: self.num_mutable + self.num_fixed]
 
     def settle(
         self,
@@ -46,6 +50,6 @@ class PointCloud:
         update = np.average(
             kernel(neighbors - self.mutable_points[:, np.newaxis, :]), axis=1
         )
-        self.inner -= rate * update
+        self.mutable_points -= rate * update
         if force is not None:
-            self.inner += force(self.inner)
+            self.mutable_points += force(self.mutable_points)
