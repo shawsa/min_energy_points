@@ -4,7 +4,8 @@ Forces defined by geometric objects.
 
 from abc import ABC, abstractmethod
 import numpy as np
-from force_functions import ForceFunction
+
+from .force_functions import ForceFunction
 
 
 class Boundary(ABC):

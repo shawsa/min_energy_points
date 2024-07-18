@@ -35,6 +35,15 @@ class PointCloud:
     def points(self):
         return self.all_points[: self.num_mutable + self.num_fixed]
 
+    @property
+    def fixed_points(self):
+        return self.all_points[self.num_mutable: self.num_mutable + self.num_fixed]
+
+    @property
+    def ghost_points(self):
+        N = self.num_mutable + self.num_fixed
+        return self.all_points[N: N + self.num_ghost]
+
     def settle(
         self,
         *,
@@ -47,9 +56,10 @@ class PointCloud:
         kdt = KDTree(self.points)
         _, neighbors_indices = kdt.query(self.mutable_points, num_neighbors + 1)
         neighbors = self.points[neighbors_indices][:, 1:]
-        update = np.average(
+        update = -rate * np.average(
             kernel(neighbors - self.mutable_points[:, np.newaxis, :]), axis=1
         )
-        self.mutable_points -= rate * update
         if force is not None:
-            self.mutable_points += force(self.mutable_points)
+            update += force(self.mutable_points)
+
+        self.mutable_points += update

@@ -1,27 +1,12 @@
 from math import ceil
-import matplotlib.pyplot as plt
 import numpy as np
-from .points import PointCloud
-from .kernels import ConstRepulsionKernel, GaussianRepulsionKernel
-
 from tqdm import tqdm
 
-
-def hex_limit_covering_radius(N: int):
-    """
-    Find the approximate covering radius for a hex grid with N points per unit area.
-    """
-    unit_density = 4 / (3 * np.sqrt(3))
-    return np.sqrt(unit_density / N)
-
-
-def hex_limit_density(h: float):
-    """
-    Find the approximate number of points per unit area for a hex grid with the
-    covering radius h.
-    """
-    unit_density = 4 / (3 * np.sqrt(3))
-    return ceil(1 / (unit_density * h**2))
+from .force_functions import RectifiedLinear
+from .hex_limit import hex_limit_covering_radius
+from .kernels import ConstRepulsionKernel, GaussianRepulsionKernel
+from .geometry import BoundaryForce, MultipleBoundaryForce, PlanarBoundary
+from .points import PointCloud
 
 
 def generate_boundary_points(n: int, boundary_points: np.ndarray[float] = None):
@@ -80,7 +65,7 @@ class UnitSquare(PointCloud):
         ghost_points = points[self.N :]
         generate_boundary_points(self.n + 1, ghost_points)
         ghost_points *= 1 + self.h * np.sqrt(2)
-        ghost_points -= self.h * np.sqrt(2)/2
+        ghost_points -= self.h * np.sqrt(2) / 2
 
         points[:num_interior] = self.h + (1 - 2 * self.h) * np.random.random(
             (self.N - 4 * self.n, 2)
@@ -95,6 +80,21 @@ class UnitSquare(PointCloud):
         self.const_kernel = ConstRepulsionKernel(self.h / 2)
         self.repulsion_kernel = GaussianRepulsionKernel(height=1, shape=self.h / 2)
 
+        force_func = RectifiedLinear(self.h / 2)
+        self.boundary_force = MultipleBoundaryForce(
+            *[
+                BoundaryForce(
+                    PlanarBoundary(np.array(offset), np.array(normal)), force_func
+                )
+                for offset, normal in [
+                    [(0, 0), (0, 1)],  # bottom
+                    [(0, 0), (1, 0)],  # left
+                    [(1, 1), (0, -1)],  # top
+                    [(1, 1), (-1, 0)],  # right
+                ]
+            ]
+        )
+
         if auto_settle:
             self.auto_settle()
 
@@ -106,16 +106,6 @@ class UnitSquare(PointCloud):
         edge_distance = 0.5 - np.max(np.abs(shift_points))
         factor = (0.5 - edge_distance / 2) / (0.5 - edge_distance)
         self.mutable_points = shift_points * factor + 0.5
-
-    def force_shape(self, x):
-        return (-x + self.h / 2) * np.heaviside(-x, 0.5)
-
-    def boundary_force(self, points):
-        force = np.zeros_like(points)
-        x, y = points.T
-        force[:, 0] = self.force_shape(x) - self.force_shape(1 - x)
-        force[:, 1] = self.force_shape(y) - self.force_shape(1 - y)
-        return force
 
     def settle(
         self,
@@ -152,72 +142,41 @@ class UnitSquare(PointCloud):
             )
 
     def auto_settle(self):
-        self.jostle(repeat=50, verbose=self.verbose, tqdm_kwargs=self.tqdm_kwargs)
+        self.jostle(repeat=100, verbose=self.verbose, tqdm_kwargs=self.tqdm_kwargs)
         self.settle(
-            rate=1, repeat=50, verbose=self.verbose, tqdm_kwargs=self.tqdm_kwargs
+            rate=10, repeat=100, verbose=self.verbose, tqdm_kwargs=self.tqdm_kwargs
         )
 
 
 if __name__ == "__main__":
+    import matplotlib.pyplot as plt
     from scipy.spatial import Delaunay
-    from .points import PointCloud
 
     plt.ion()
-    N = 10_000
-    unit_square = UnitSquare(N, auto_settle=False, edge_cluster=False)
-    # unit_square.auto_settle(verbose=True)
+    N = 4000
+    unit_square = UnitSquare(N)
 
-    plt.figure("Mesh")
+    plt.figure()
     (scatter,) = plt.plot(*unit_square.mutable_points.T, "k.")
-    plt.plot(*unit_square.boundary.T, "bs")
-    plt.plot(*unit_square.ghost.T, "or")
+    plt.plot(*unit_square.fixed_points.T, "bs")
+    plt.plot(*unit_square.ghost_points.T, "or")
     plt.axis("equal")
 
-    # unit_square.jostle(repeat=20, verbose=True)
-    for _ in tqdm(range(50)):
-        unit_square.jostle(repeat=1)
+    if False:
+        unit_square = UnitSquare(N, auto_settle=False, edge_cluster=False)
+        for _ in tqdm(range(100)):
+            unit_square.jostle(repeat=1)
+            scatter.set_data(*unit_square.mutable_points.T)
+            plt.pause(1e-3)
+
+        for _ in tqdm(range(100)):
+            unit_square.settle(rate=1)
+            scatter.set_data(*unit_square.mutable_points.T)
+            plt.pause(1e-3)
+
+        unit_square.edge_cluster()
         scatter.set_data(*unit_square.mutable_points.T)
         plt.pause(1e-3)
 
-    # unit_square.settle(rate=1, repeat=20, verbose=True)
-    for _ in tqdm(range(25)):
-        unit_square.settle(rate=0.1)
-        scatter.set_data(*unit_square.mutable_points.T)
-        plt.pause(1e-3)
-
-    for _ in tqdm(range(25)):
-        unit_square.settle(rate=1)
-        scatter.set_data(*unit_square.mutable_points.T)
-        plt.pause(1e-3)
-
-    unit_square.edge_cluster()
-    scatter.set_data(*unit_square.mutable_points.T)
-    plt.pause(1e-3)
-
-    points = unit_square.points
-    mesh = Delaunay(points)
-    plt.triplot(*points.T, mesh.simplices)
-    circum_radii = []
-    centroids = []
-    for tri_indices in mesh.simplices:
-        tri_points = mesh.points[tri_indices]
-        centroids.append(triangle(tri_points).centroid)
-        circum_radii.append(circumradius(tri_points))
-    centroids = np.array(centroids)
-    plt.scatter(*centroids.T, c=circum_radii, cmap="jet")
-    plt.colorbar(label="$h$")
-    plt.show()
-
-    if True:
-        print("Covering Stats")
-        print(f"Target: {unit_square.h:.3E}")
-        print(f"min:\t{min(circum_radii):.3E}")
-        print(
-            f"median:\t{np.median(circum_radii):.3E}\t (ave={np.average(circum_radii):.3E})"
-        )
-        print(f"max:\t{max(circum_radii):.3E}")
-        print(f"max/ave = {max(circum_radii)/np.average(circum_radii):.3f}")
-
-    plt.figure("Histogram")
-    plt.hist(circum_radii, bins=20)
-    plt.xlabel("$h$")
+    mesh = Delaunay(unit_square.points)
+    plt.triplot(*unit_square.points.T, mesh.simplices)
