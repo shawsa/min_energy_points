@@ -51,7 +51,6 @@ class PointCloud:
         rate: float,
         num_neighbors: int,
         force: Callable = None,
-        repeat=1,
     ):
         kdt = KDTree(self.points)
         _, neighbors_indices = kdt.query(self.mutable_points, num_neighbors + 1)
