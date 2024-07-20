@@ -45,7 +45,11 @@ class IntersectionBoundary(Boundary):
         self.boundaries = boundaries
 
     def contains(self, points: np.ndarray[float]) -> np.ndarray[bool]:
-        return reduce(np.logical_and, (bnd.contains(points) for bnd in self.boundaries))
+        return reduce(
+            np.logical_and,
+            (bnd.contains(points) for bnd in self.boundaries),
+            np.ones(len(points), dtype=bool),
+        )
 
 
 class UnionBoundary(Boundary):
@@ -112,17 +116,21 @@ class PolygonalEdgeBoundaryForce(RestrictedBoundaryForce):
         neighbors: tuple[PlanarBoundary],
     ):
         boundary_force = BoundaryForce(force, boundary)
-        restrictions = []
-        for bnd in neighbors:
-            offset = la.solve(
+        verts = [
+            la.solve(
                 np.array([boundary.normal, bnd.normal]),
                 np.r_[
                     np.dot(boundary.normal, boundary.offset),
                     np.dot(bnd.normal, bnd.offset),
                 ],
             )
-            normal = boundary.normal - bnd.normal
-            restrictions.append(PlanarBoundary(offset, normal))
+            for bnd in neighbors
+        ]
+        restrictions = [
+            PlanarBoundary(vert, boundary.normal - bnd.normal)
+            for bnd, vert, other_vert in zip(neighbors, verts, verts[::-1])
+            if not bnd.contains(other_vert)
+        ]
         super().__init__(boundary_force, IntersectionBoundary(*restrictions))
 
 
