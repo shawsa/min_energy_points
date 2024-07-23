@@ -98,6 +98,10 @@ class RestrictedBoundaryForce(BoundaryForce):
 
 class PlanarBoundary(SimpleBoundary):
     def __init__(self, offset: np.ndarray[float], normal: np.ndarray[float]):
+        if not type(offset) is np.ndarray[float]:
+            offset = np.array(offset, dtype=float)
+        if not type(normal) is np.ndarray[float]:
+            normal = np.array(normal, dtype=float)
         self.offset = offset
         self.normal = normal / la.norm(normal)
 
