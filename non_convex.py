@@ -11,7 +11,8 @@ from geometry import (
     PlanarBoundary,
     PolygonalBoundary
 )
-from points import PointCloud
+from .points import PointCloud
+from .hex_limit import hex_limit_covering_radius
 
 import matplotlib.pyplot as plt
 
@@ -22,6 +23,8 @@ cutout = "square"
 # cutout = "ell"
 # cutout = "lune"
 # cutout = "circ_in_square"
+
+circ_area = np.pi * outer_circ.radius**2
 
 match cutout:
     case "square":
@@ -35,6 +38,7 @@ match cutout:
                 PlanarBoundary(*2*(np.r_[-1, 0],)),
             )
         )
+        area = circ_area - 4
     case "ell":
         boundary_force = MultipleBoundaryForce(
             BoundaryForce(RectifiedLinear(0), outer_circ),
@@ -45,11 +49,13 @@ match cutout:
                 PlanarBoundary(np.r_[10, 10], np.r_[1, 1]),
             )
         )
+        area = circ_area / 4
     case "lune":
         boundary_force = MultipleBoundaryForce(
             BoundaryForce(RectifiedLinear(0), outer_circ) ,
             BoundaryForce(RectifiedLinear(0), CircularBoundary(np.r_[2, 0], 2, invert=True)),
         )
+        area = circ_area / 6  # just a guess
     case "circ_in_square":
         boundary_force = MultipleBoundaryForce(
             BoundaryForce(
@@ -66,27 +72,19 @@ match cutout:
                 )
             ]
         )
-
-thetas = np.linspace(-np.pi, np.pi, 201)
-
-plt.ion()
-plt.plot(
-    outer_circ.radius * np.cos(thetas) + outer_circ.center[0],
-    outer_circ.radius * np.sin(thetas) + outer_circ.center[1],
-    "k-",
-)
-
-plt.axis("equal")
+        area = 4**2 - np.pi
 
 N = 2000
 points = np.random.random((N, 2)) * 6 - 3
 pc = PointCloud(points)
 
+plt.close()
 scatter, *_ = plt.plot(*pc.points.T, "k.")
+plt.axis("equal")
 
-
-const_kernel = ConstRepulsionKernel(6 / N)
-gauss_kernel = GaussianRepulsionKernel(1, 1 / (9 * np.pi))
+h = hex_limit_covering_radius(N) * np.sqrt(area)
+const_kernel = ConstRepulsionKernel(h)
+gauss_kernel = GaussianRepulsionKernel(h, h)
 
 
 def jostle(points: PointCloud, rate=1):
@@ -100,7 +98,7 @@ def jostle(points: PointCloud, rate=1):
 
 
 def settle(points: PointCloud, rate: float = 1):
-    num_neighbors = 19
+    num_neighbors = 18
     points.settle(
         kernel=gauss_kernel,
         rate=rate / num_neighbors,
@@ -110,11 +108,11 @@ def settle(points: PointCloud, rate: float = 1):
 
 
 for _ in tqdm(range(400)):
-    jostle(pc, rate=20)
+    jostle(pc, rate=1)
     scatter.set_data(*pc.mutable_points.T)
     plt.pause(1e-3)
 
 for _ in tqdm(range(400)):
-    settle(pc, rate=10)
+    settle(pc, rate=1)
     scatter.set_data(*pc.mutable_points.T)
     plt.pause(1e-3)

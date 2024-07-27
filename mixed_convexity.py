@@ -8,6 +8,7 @@ from geometry import (
     PolygonalBoundary
 )
 from points import PointCloud
+from hex_limit import hex_limit_covering_radius
 
 import matplotlib.pyplot as plt
 
@@ -23,6 +24,8 @@ boundary_force = PolygonalBoundary(
     PlanarBoundary([0.5, -1], [0, 1]),
 )
 
+area = 4 - 0.5
+
 plt.ion()
 
 
@@ -37,8 +40,11 @@ plt.axis("equal")
 for bnd in boundary_force.boundaries:
     plt.plot(*np.c_[bnd.offset, bnd.offset+.2*bnd.normal], "g-")
 
-const_kernel = ConstRepulsionKernel(6 / N)
-gauss_kernel = GaussianRepulsionKernel(1, 1 / (9 * np.pi))
+# h = np.sqrt(area / N / np.pi)
+h = hex_limit_covering_radius(N) * np.sqrt(area)
+
+const_kernel = ConstRepulsionKernel(h)
+gauss_kernel = GaussianRepulsionKernel(h, h)
 
 
 def jostle(points: PointCloud, rate=1):
@@ -62,7 +68,7 @@ def settle(points: PointCloud, rate: float = 1):
 
 
 for _ in tqdm(range(400)):
-    jostle(pc, rate=20)
+    jostle(pc, rate=1)
     scatter.set_data(*pc.mutable_points.T)
     plt.pause(1e-3)
 

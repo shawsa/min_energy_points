@@ -5,7 +5,7 @@ from tqdm import tqdm
 from .force_functions import RectifiedLinear
 from .hex_limit import hex_limit_covering_radius
 from .kernels import ConstRepulsionKernel, GaussianRepulsionKernel
-from .geometry import BoundaryForce, MultipleBoundaryForce, PlanarBoundary
+from .geometry import PolygonalBoundary, PlanarBoundary
 from .points import PointCloud
 
 
@@ -78,21 +78,20 @@ class UnitSquare(PointCloud):
         )
 
         self.const_kernel = ConstRepulsionKernel(self.h / 2)
-        self.repulsion_kernel = GaussianRepulsionKernel(height=1, shape=self.h / 2)
+        self.repulsion_kernel = GaussianRepulsionKernel(self.h / 2, self.h)
 
         force_func = RectifiedLinear(self.h / 2)
-        self.boundary_force = MultipleBoundaryForce(
+        self.boundary_force = PolygonalBoundary(
+            force_func,
             *[
-                BoundaryForce(
-                    PlanarBoundary(np.array(offset), np.array(normal)), force_func
-                )
+                PlanarBoundary(np.array(offset), np.array(normal))
                 for offset, normal in [
                     [(0, 0), (0, 1)],  # bottom
                     [(0, 0), (1, 0)],  # left
                     [(1, 1), (0, -1)],  # top
                     [(1, 1), (-1, 0)],  # right
                 ]
-            ]
+            ],
         )
 
         if auto_settle:
@@ -114,7 +113,7 @@ class UnitSquare(PointCloud):
         verbose: bool = False,
         tqdm_kwargs={},
     ):
-        num_neighbors = 19
+        num_neighbors = 18
         my_iter = range(repeat)
         if verbose:
             my_iter = tqdm(my_iter, **tqdm_kwargs)
@@ -144,7 +143,7 @@ class UnitSquare(PointCloud):
     def auto_settle(self):
         self.jostle(repeat=100, verbose=self.verbose, tqdm_kwargs=self.tqdm_kwargs)
         self.settle(
-            rate=10, repeat=100, verbose=self.verbose, tqdm_kwargs=self.tqdm_kwargs
+            rate=1, repeat=100, verbose=self.verbose, tqdm_kwargs=self.tqdm_kwargs
         )
 
 
@@ -153,8 +152,8 @@ if __name__ == "__main__":
     from scipy.spatial import Delaunay
 
     plt.ion()
-    N = 4000
-    unit_square = UnitSquare(N)
+    N = 10000
+    unit_square = UnitSquare(N, auto_settle=False, edge_cluster=False)
 
     plt.figure()
     (scatter,) = plt.plot(*unit_square.mutable_points.T, "k.")
@@ -162,21 +161,19 @@ if __name__ == "__main__":
     plt.plot(*unit_square.ghost_points.T, "or")
     plt.axis("equal")
 
-    if False:
-        unit_square = UnitSquare(N, auto_settle=False, edge_cluster=False)
-        for _ in tqdm(range(100)):
-            unit_square.jostle(repeat=1)
-            scatter.set_data(*unit_square.mutable_points.T)
-            plt.pause(1e-3)
-
-        for _ in tqdm(range(100)):
-            unit_square.settle(rate=1)
-            scatter.set_data(*unit_square.mutable_points.T)
-            plt.pause(1e-3)
-
-        unit_square.edge_cluster()
+    for _ in tqdm(range(100)):
+        unit_square.jostle(repeat=1)
         scatter.set_data(*unit_square.mutable_points.T)
         plt.pause(1e-3)
+
+    for _ in tqdm(range(100)):
+        unit_square.settle(rate=1)
+        scatter.set_data(*unit_square.mutable_points.T)
+        plt.pause(1e-3)
+
+    unit_square.edge_cluster()
+    scatter.set_data(*unit_square.mutable_points.T)
+    plt.pause(1e-3)
 
     mesh = Delaunay(unit_square.points)
     plt.triplot(*unit_square.points.T, mesh.simplices)

@@ -23,6 +23,7 @@ class GaussianRepulsionKernel(RepulsionKernel):
     def __call__(self, displacement: np.ndarray):
         ret = displacement.copy()
         mags = la.norm(ret, axis=-1)
+        ret /= mags[..., np.newaxis]
         mags = self.height * np.exp(-((mags / self.shape) ** 2)) / mags
         ret[..., 0] *= mags
         ret[..., 1] *= mags

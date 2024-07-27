@@ -51,6 +51,7 @@ class PointCloud:
         rate: float,
         num_neighbors: int,
         force: Callable = None,
+        projection: Callable[[np.ndarray[float]], np.ndarray[float]] = None,
     ):
         kdt = KDTree(self.points)
         _, neighbors_indices = kdt.query(self.mutable_points, num_neighbors + 1)
@@ -60,5 +61,6 @@ class PointCloud:
         )
         if force is not None:
             update += force(self.mutable_points)
-
         self.mutable_points += update
+        if projection is not None:
+            self.mutable_points = projection(self.mutable_points)
