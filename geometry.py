@@ -7,7 +7,7 @@ from functools import reduce
 import numpy as np
 import numpy.linalg as la
 
-from force_functions import ForceFunction
+from .force_functions import ForceFunction
 
 
 class Boundary(ABC):

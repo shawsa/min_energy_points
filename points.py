@@ -6,7 +6,7 @@ import numpy as np
 from scipy.spatial import KDTree
 from typing import Callable
 
-from kernels import RepulsionKernel
+from .kernels import RepulsionKernel
 
 
 class PointCloud:
