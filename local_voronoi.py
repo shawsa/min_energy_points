@@ -280,9 +280,11 @@ class LocalSurfaceVoronoi(LocalVoronoi):
 
 
 if __name__ == "__main__":
+    from collections import defaultdict
+    from itertools import combinations
     import matplotlib.pyplot as plt
     from min_energy_points.unit_square import UnitSquare
-    from min_energy_points.torus import TorusPoints
+    from min_energy_points.torus import TorusPoints, SpiralTorus
     import pyvista as pv
     from scipy.spatial import Voronoi, voronoi_plot_2d
 
@@ -322,12 +324,26 @@ if __name__ == "__main__":
     np.random.seed(0)
     N = 3_000
     torus = TorusPoints(N, verbose=True)
-    torus.settle(rate=1, repeat=10_000, verbose=True)
+    # torus = SpiralTorus(N)
+    # torus.settle(rate=1, repeat=10_000, verbose=True)
     vor = LocalSurfaceVoronoi(
         points=torus.points,
         normals=torus.normals,
         implicit_surf=torus.implicit_surf,
     )
+
+    # find unattached triangles
+    edge_count = defaultdict(lambda: 0)
+    for tri in vor.triangles:
+        for edge in combinations(tri, 2):
+            key = tuple(sorted(edge))
+            edge_count[key] += 1
+    incomplete = set()
+    for index, tri in enumerate(vor.triangles):
+        for edge in combinations(tri, 2):
+            if edge_count[key] != 2:
+                incomplete.add(index)
+    print(f"{len(incomplete)=}")
 
     points = torus.points
     surf = pv.PolyData(points, [(3, *f) for f in vor.triangles])

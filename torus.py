@@ -121,6 +121,28 @@ class TorusPoints(PointCloud):
         )
 
 
+class SpiralTorus(TorusPoints):
+    def __init__(
+        self,
+        N: int,
+        R: float = 3.0,
+        r: float = 1.0,
+    ):
+        super().__init__(N=N, R=R, r=r, auto_settle=False)
+
+        p1 = 7
+        p2 = 3
+
+        thetas = np.linspace(0, 2 * np.pi, N, endpoint=False)
+        phis = np.arange(N) * p2 / p1
+
+        self.points[:, 0] = np.cos(thetas) * (R + r * np.cos(phis))
+        self.points[:, 1] = np.sin(thetas) * (R + r * np.cos(phis))
+        self.points[:, 2] = r * np.sin(phis)
+
+        self.init_normals()
+
+
 if __name__ == "__main__":
     N = 10_000
     R, r = 3, 1
