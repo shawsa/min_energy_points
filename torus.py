@@ -132,46 +132,25 @@ class SpiralTorus(TorusPoints):
         N: int,
         R: float = 3.0,
         r: float = 1.0,
+        num_wraps: int = None,
     ):
-        super().__init__(N=N, R=R, r=r, auto_settle=False)
-
-        p1 = 7
-        p2 = 3
-
-        thetas = np.linspace(0, 2 * np.pi, N, endpoint=False)
-        phis = np.arange(N) * p2 / p1
-
-        self.points[:, 0] = np.cos(thetas) * (R + r * np.cos(phis))
-        self.points[:, 1] = np.sin(thetas) * (R + r * np.cos(phis))
-        self.points[:, 2] = r * np.sin(phis)
-
-        self.init_normals()
-
-
-class SpiralTorus2(TorusPoints):
-    def __init__(
-        self,
-        N: int,
-        R: float = 3.0,
-        r: float = 1.0,
-        num_wraps: int = 3,
-    ):
-        num_spirals = int(np.sqrt(N / num_wraps))
+        if num_wraps is None:
+            num_wraps = int((R + .1 / r))
+        num_spirals = int(np.sqrt(N) / num_wraps * (R / r) / 2)
         num_spirals += num_spirals % 2  # make even
         points_around = N // num_spirals
-        theta_shift = num_wraps / points_around
+        theta_shift = (2 * np.pi / num_wraps) / num_spirals
+        phi_shift = theta_shift * (r / R)  # * np.sqrt(3)
 
         N = points_around * num_spirals
-        points = np.empty((N, 3))
+        points = np.zeros((N, 3))
 
         thetas_base = np.linspace(0, 2 * np.pi, points_around, endpoint=False)
         phis_base = np.linspace(0, 2 * np.pi * num_wraps, points_around, endpoint=False)
 
         for spiral_index in range(num_spirals):
-            thetas = thetas_base + spiral_index * theta_shift
-            phis = phis_base + (spiral_index % 2) * theta_shift * np.sqrt(3) / (
-                2 * np.pi
-            )
+            thetas = thetas_base + (spiral_index * theta_shift)
+            phis = phis_base + (spiral_index % 2) * phi_shift
             start = spiral_index * points_around
             stop = (spiral_index + 1) * points_around
             points[start:stop, 0] = np.cos(thetas) * (R + r * np.cos(phis))
@@ -185,10 +164,10 @@ if __name__ == "__main__":
     from .local_voronoi import LocalSurfaceVoronoi
     import pyvista as pv
 
-    N = 20_000
+    N = 30_000
     R, r = 3, 1
 
-    torus = TorusPoints(N, auto_settle=False)
+    torus = TorusPoints(N, R=R, r=r, auto_settle=False)
     plt.ion()
     ax = plt.figure().add_subplot(projection="3d")
     (scatter,) = ax.plot(*torus.points.T, "k.")
@@ -206,7 +185,7 @@ if __name__ == "__main__":
 
     from scipy.spatial import KDTree
 
-    torus = SpiralTorus2(N)
+    torus = SpiralTorus2(N, R=R, r=r)
     plotter = pv.Plotter(off_screen=False)
     plotter.add_mesh(
         pv.PolyData(torus.points),
@@ -214,7 +193,7 @@ if __name__ == "__main__":
         point_size=10,
         render_points_as_spheres=True,
     )
-    plotter.set_focus(torus.points[386])
+    # plotter.set_focus(torus.points[2185])
     plotter.show()
 
     tree = KDTree(torus.points)
