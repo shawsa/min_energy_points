@@ -162,7 +162,9 @@ class SpiralTorus(TorusPoints):
 
 if __name__ == "__main__":
     from .local_voronoi import LocalSurfaceVoronoi
+
     import pyvista as pv
+    from scipy.spatial import KDTree
 
     N = 30_000
     R, r = 3, 1
@@ -183,9 +185,7 @@ if __name__ == "__main__":
         scatter.set_data_3d(*torus.points.T)
         plt.pause(0.1)
 
-    from scipy.spatial import KDTree
-
-    torus = SpiralTorus2(N, R=R, r=r)
+    torus = SpiralTorus(N, R=R, r=r)
     plotter = pv.Plotter(off_screen=False)
     plotter.add_mesh(
         pv.PolyData(torus.points),
