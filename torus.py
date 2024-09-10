@@ -2,6 +2,7 @@
 A simple module for placing points on a sphere.
 """
 
+from math import ceil
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.linalg as la
@@ -135,24 +136,23 @@ class SpiralTorus(TorusPoints):
         num_wraps: int = None,
     ):
         if num_wraps is None:
-            num_wraps = int((R + .1 / r))
-        num_spirals = int(np.sqrt(N) / num_wraps * (R / r) / 2)
-        num_spirals += num_spirals % 2  # make even
-        points_around = N // num_spirals
-        theta_shift = (2 * np.pi / num_wraps) / num_spirals
-        phi_shift = theta_shift * (r / R)  # * np.sqrt(3)
+            num_wraps = ceil(np.sqrt(3) * R / r)
+        points_per_spiral = int(np.sqrt(N / np.sqrt(1 + (num_wraps * r / R) ** 2)))
+        num_spirals = int(N / points_per_spiral)
+        N = num_spirals * points_per_spiral
 
-        N = points_around * num_spirals
+        theta_shift = 2 * np.pi / num_spirals
+
         points = np.zeros((N, 3))
-
-        thetas_base = np.linspace(0, 2 * np.pi, points_around, endpoint=False)
-        phis_base = np.linspace(0, 2 * np.pi * num_wraps, points_around, endpoint=False)
+        thetas_base = np.linspace(
+            0, 2 * np.pi / num_spirals, points_per_spiral, endpoint=False
+        )
+        phis = np.linspace(0, 2 * np.pi * num_wraps, points_per_spiral, endpoint=False)
 
         for spiral_index in range(num_spirals):
             thetas = thetas_base + (spiral_index * theta_shift)
-            phis = phis_base + (spiral_index % 2) * phi_shift
-            start = spiral_index * points_around
-            stop = (spiral_index + 1) * points_around
+            start = spiral_index * points_per_spiral
+            stop = (spiral_index + 1) * points_per_spiral
             points[start:stop, 0] = np.cos(thetas) * (R + r * np.cos(phis))
             points[start:stop, 1] = np.sin(thetas) * (R + r * np.cos(phis))
             points[start:stop, 2] = r * np.sin(phis)

@@ -219,6 +219,14 @@ class SurfaceCell(Cell):
         rhs[:, 1] = np.sum(n2 * o2, axis=1)
         rhs[:, 2] = np.dot(self.center_normal, self.center)
 
+        singular_mask = la.cond(mat) < 1e15
+        mat = mat[singular_mask]
+        rhs = rhs[singular_mask]
+        index1 = index1[singular_mask]
+        index2 = index2[singular_mask]
+        n1 = n1[singular_mask]
+        n2 = n2[singular_mask]
+
         approx_vert = la.solve(mat, rhs)
         cross = np.cross(n1, n2)
         # secant method to project onto surface
