@@ -6,7 +6,8 @@ from min_energy_points.local_voronoi import LocalSurfaceVoronoi
 
 from scipy.spatial import KDTree
 
-N = 60_000
+N = 48502
+# N = 3_000
 
 torus = SpiralTorus(N)
 plotter = pv.Plotter(off_screen=False)
@@ -16,13 +17,13 @@ plotter.add_mesh(
     render_points_as_spheres=True,
     point_size=20,
 )
-plotter.add_mesh(
-    pv.PolyData(torus.points[np.array([0, 15022])]),
-    style="points",
-    render_points_as_spheres=True,
-    point_size=20,
-    color="red",
-)
+# plotter.add_mesh(
+#     pv.PolyData(torus.points[np.array([0, 15022])]),
+#     style="points",
+#     render_points_as_spheres=True,
+#     point_size=20,
+#     color="red",
+# )
 # plotter.set_focus([4, 0, 0])
 plotter.show()
 
