@@ -41,4 +41,18 @@ plotter.add_mesh(
     cmap=["#AAAAAA", "#005500", "#774444"],
     show_scalar_bar=False,
 )
+last = torus.points_per_spiral * (torus.num_spirals - 1)
+first_wrap = torus.points_per_spiral // torus.num_wraps
+# highlight_points = [
+#     *range(4),
+#     *range(first_wrap, first_wrap + 3),
+#     *range(last, last + 7),
+# ]
+# plotter.add_mesh(
+#     pv.PolyData(torus.points[np.array(highlight_points)]),
+#     style="points",
+#     render_points_as_spheres=True,
+#     point_size=20,
+#     color="red",
+# )
 plotter.show()
